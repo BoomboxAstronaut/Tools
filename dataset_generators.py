@@ -7,19 +7,22 @@ import cv2 as cv
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
-#trainfonts = [r'C:\Windows\Fonts\REEMKUFI-REGULAR.TTF', r'C:\Windows\Fonts\PER_____.TTF', r'C:\Windows\Fonts\SOURCECODEPRO-REGULAR.TTF', r'C:\Windows\Fonts\ITCKRIST.TTF', r'C:\Windows\Fonts\AGENCYR.TTF', r'C:\Users\BBA\AppData\Local\Microsoft\Windows\Fonts\FONTIN-SMALLCAPS.TTF', r'C:\Users\BBA\AppData\Local\Microsoft\Windows\Fonts\FONTIN-REGULAR.TTF', r'C:\Users\BBA\AppData\Local\Microsoft\Windows\Fonts\FONTIN-ITALIC.TTF', r'C:\Users\BBA\AppData\Local\Microsoft\Windows\Fonts\FONTIN-BOLD.TTF', r'C:\Windows\Fonts\JOKERMAN.TTF', r'C:\Windows\Fonts\ELEPHNT.TTF', r'C:\Windows\Fonts\PLAYBILL.TTF', r'C:\Windows\Fonts\MTCORSVA.TTF', r'C:\Windows\Fonts\VINERITC.TTF', r'C:\Windows\Fonts\PRISTINA.TTF', r'C:\Windows\Fonts\MATURASC.TTF', r'C:\Windows\Fonts\LCALLIG.TTF', r'C:\Windows\Fonts\CHILLER.TTF', r'C:\Windows\Fonts\DAVIDLIBRE-REGULAR.TTF', r'C:\Windows\Fonts\HATTEN.TTF', r'C:\Windows\Fonts\PRISTINA.TTF', r'C:\Windows\Fonts\GABRIOLA.TTF', r'C:\Windows\Fonts\FELIXTI.TTF', r'C:\Windows\Fonts\CALIFR.TTF', r'C:\Windows\Fonts\Candara.ttf', r'C:\Windows\Fonts\CASTELAR.TTF', r'C:\Windows\Fonts\BRLNSR.TTF', r'C:\Users\BBA\AppData\Local\Microsoft\Windows\Fonts\IBMPlexSans-Regular.otf', r'C:\Windows\Fonts\COOPBL.TTF', r'C:\Windows\Fonts\CURLZ___.TTF', r'C:\Windows\Fonts\ENGR.TTF', r'C:\Windows\Fonts\ERASBD.TTF', r'C:\Windows\Fonts\estre.ttf', r'C:\Windows\Fonts\FORTE.TTF', r'C:\Windows\Fonts\COMIC.TTF', r'C:\Windows\Fonts\GILI____.TTF', r'C:\Windows\Fonts\LSANS.TTF', r'C:\Windows\Fonts\HTOWERT.TTF', r'C:\Windows\Fonts\INFROMAN.TTF', r'C:\Windows\Fonts\GOUDOS', r'C:\Windows\Fonts\MAIAN.TTF', r'C:\Windows\Fonts\MICROSS.TTF', r'C:\Windows\Fonts\GOTHICI.TTF', r'C:\Windows\Fonts\NIAGSOL.TTF', r'C:\Windows\Fonts\NOTOMONO-REGULAR.TTF']
-trainfonts = [r'C:\Windows\Fonts\CALIBRIL.TTF', r'C:\Windows\Fonts\VERDANA.TTF', r'C:\Windows\Fonts\COUR.TTF', r'C:\Windows\Fonts\TIMES.TTF', r'C:\Windows\Fonts\ARIAL.TTF', r'C:\Windows\Fonts\REEMKUFI-REGULAR.TTF', r'C:\Windows\Fonts\PER_____.TTF', r'C:\Windows\Fonts\SOURCECODEPRO-REGULAR.TTF', r'C:\Windows\Fonts\ITCKRIST.TTF', r'C:\Windows\Fonts\AGENCYR.TTF', r'C:\Users\BBA\AppData\Local\Microsoft\Windows\Fonts\FONTIN-SMALLCAPS.TTF', r'C:\Users\BBA\AppData\Local\Microsoft\Windows\Fonts\FONTIN-REGULAR.TTF', r'C:\Users\BBA\AppData\Local\Microsoft\Windows\Fonts\FONTIN-ITALIC.TTF', r'C:\Users\BBA\AppData\Local\Microsoft\Windows\Fonts\FONTIN-BOLD.TTF', r'C:\Windows\Fonts\JOKERMAN.TTF', r'C:\Windows\Fonts\ELEPHNT.TTF', r'C:\Windows\Fonts\PLAYBILL.TTF', r'C:\Windows\Fonts\VINERITC.TTF', r'C:\Windows\Fonts\MATURASC.TTF', r'C:\Windows\Fonts\LCALLIG.TTF', r'C:\Windows\Fonts\CHILLER.TTF', r'C:\Windows\Fonts\DAVIDLIBRE-REGULAR.TTF', r'C:\Windows\Fonts\HATTEN.TTF', r'C:\Windows\Fonts\GABRIOLA.TTF', r'C:\Windows\Fonts\FELIXTI.TTF', r'C:\Windows\Fonts\CALIFR.TTF', r'C:\Windows\Fonts\Candara.ttf', r'C:\Windows\Fonts\CASTELAR.TTF', r'C:\Windows\Fonts\BRLNSR.TTF', r'C:\Users\BBA\AppData\Local\Microsoft\Windows\Fonts\IBMPlexSans-Regular.otf', r'C:\Windows\Fonts\COOPBL.TTF', r'C:\Windows\Fonts\CURLZ___.TTF', r'C:\Windows\Fonts\ENGR.TTF', r'C:\Windows\Fonts\ERASBD.TTF', r'C:\Windows\Fonts\estre.ttf', r'C:\Windows\Fonts\FORTE.TTF', r'C:\Windows\Fonts\COMIC.TTF', r'C:\Windows\Fonts\GILI____.TTF', r'C:\Windows\Fonts\LSANS.TTF', r'C:\Windows\Fonts\HTOWERT.TTF', r'C:\Windows\Fonts\GOUDOS', r'C:\Windows\Fonts\MAIAN.TTF', r'C:\Windows\Fonts\MICROSS.TTF', r'C:\Windows\Fonts\GOTHICI.TTF', r'C:\Windows\Fonts\NIAGSOL.TTF', r'C:\Windows\Fonts\NOTOMONO-REGULAR.TTF']
-evalfonts = [r'C:\Windows\Fonts\TIMES.TTF', r'C:\Windows\Fonts\ARIAL.TTF', r'C:\Users\BBA\AppData\Local\Microsoft\Windows\Fonts\FONTIN-REGULAR.TTF', r'C:\Windows\Fonts\LBRITE.TTF', r'C:\Windows\Fonts\NOTOSERIF-LIGHT.TTF', r'C:\Windows\Fonts\SITKA.TTC', r'C:\Windows\Fonts\SEGOEUIL.TTF', r'C:\Windows\Fonts\UNISPACE BD.TTF', r'C:\Windows\Fonts\GLECB.TTF']
+with open(f"{os.environ['Tools']}tfonts", encoding='utf8') as f:
+    trainfonts = [x.strip('\\\n') for x in f.readlines()]
+
+with open(f"{os.environ['Base']}vfonts", encoding='utf8') as f:
+    trainfonts = [x.strip('\\\n') for x in f.readlines()]
+
 chars1 = list(string.ascii_letters)
 
 logging.basicConfig(
-    filename=r'C:\Users\BBA\Coding\ComputerVision\reading\datagen.log',
+    filename=f"{os.environ['base']}\\ComputerVision\\reading\\datagen.log",
     filemode='a',
     format='%(funcName)s::%(levelname)s::%(asctime)s:: %(message)s',
     level=logging.WARNING
     )
 
-with open(r'C:\Users\BBA\Coding\Resources\engwords.txt', encoding='utf8') as f:
+with open(f"{os.environ['Base']}Resources\\engwords.txt", encoding='utf8') as f:
     words = f.read().splitlines()
 
 
@@ -74,7 +77,7 @@ def rand_char_img(letterset: str, fnts: list, rndm: bool = False) -> tuple[Image
         elif fillx > 12 <= 16:
             ImageDraw.Draw(image).rounded_rectangle([0, 0, rint_1, rint_2], rint_1, rint_2)
     ImageDraw.Draw(image).text(
-        (fillx, filly), 
+        (fillx, filly),
         char,
         font=ImageFont.truetype(random.choice(fnts), fsize, encoding="unic"),
         fill=rint_4
@@ -194,13 +197,13 @@ def bg_words(samples: int, per_im: int, fnts: list) -> list:
     """
     grids = []
     bglst = []
-    for x in os.walk(r'C:\Users\BBA\Coding\Resources\MiniDataSets\ADEChallengeData2016\images\training'):
+    for x in os.walk(f"{os.environ['Base']}Resources\\MiniDataSets\\ADEChallengeData2016\\images\\training"):
         for y in x[2]:
             bglst.append(os.path.join(x[0], y))
-    for x in os.walk(r'C:\Users\BBA\Coding\Resources\MiniDataSets\naturebg'):
+    for x in os.walk(f"{os.environ['Base']}Resources\\MiniDataSets\\naturebg"):
         for y in x[2]:
             bglst.append(os.path.join(x[0], y))
-    for x in os.walk(r'C:\Users\BBA\Coding\Resources\MiniDataSets\grids'):
+    for x in os.walk(f"{os.environ['Base']}Resources\\MiniDataSets\\grids"):
         for y in x[2]:
             grids.append(os.path.join(x[0], y))
     stored = []
@@ -369,5 +372,3 @@ def cropper(img: Image.Image) -> np.ndarray:
             xrgt = x + 2
             break
     return img[ytop:ybot, xlft:xrgt]
-
-    

@@ -366,7 +366,7 @@ def expand_data(inp: np.ndarray, top: int, dtype: type ='uint8'):
         dtype (type, optional): Datatype of the output. Defaults to 'uint8'.
 
     Returns:
-        [type]: Stretched data array 
+        [type]: Stretched data array
     """
     mnm = np.min(inp)
     inp = inp - mnm
@@ -394,7 +394,7 @@ class DataGen:
     def __next__(self):
         if self.i >= self.maxi:
             raise StopIteration
-        if type(self.labels) is bool:
+        if isinstance(self.labels, bool):
             self.i += 1
             return self.data[(self.i - 1) * self.batch_len:self.i * self.batch_len]
         self.i += 1
