@@ -95,7 +95,8 @@ def grey_np(img: Image) -> np.ndarray:
     elif img.shape[2] == 3:
         greyscaler = [0.21, 0.72, 0.07]
     else:
-        return "Invalid Image Colors"
+        print("Invalid Image Colors")
+        return
     return np.dot(np.array(img), greyscaler).astype('uint8')
 
 def normalize(data: np.ndarray) -> list:

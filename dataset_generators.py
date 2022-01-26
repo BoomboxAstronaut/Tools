@@ -10,8 +10,8 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 with open(f"{os.environ['Tools']}tfonts", encoding='utf8') as f:
     trainfonts = [x.strip('\\\n') for x in f.readlines()]
 
-with open(f"{os.environ['Base']}vfonts", encoding='utf8') as f:
-    trainfonts = [x.strip('\\\n') for x in f.readlines()]
+with open(f"{os.environ['Tools']}vfonts", encoding='utf8') as f:
+    evalfonts = [x.strip('\\\n') for x in f.readlines()]
 
 chars1 = list(string.ascii_letters)
 
@@ -372,3 +372,58 @@ def cropper(img: Image.Image) -> np.ndarray:
             xrgt = x + 2
             break
     return img[ytop:ybot, xlft:xrgt]
+
+def character_spaces(samples: int, fnts: str) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Generate labeled data for word segmentation | space detection neural network
+
+    Args:
+        samples (int): Number of samples to generate
+        fnts (str): Font set to use
+
+    Returns:
+        tuple[np.ndarray, np.ndarray]: Array containing data, Array containing labels
+    """
+    labels = []
+    data = []
+    while samples > 0:
+        samples -= 1
+        word = sentence_make(1)
+        while len(word) < 5:
+            word = sentence_make(1)
+        spaces = []
+        for x in range(len(word)):
+            image = Image.new(mode='L', color=random.randint(0, 100), size=(1000, 100))
+            ImageDraw.Draw(image).text(
+                (30, 35),
+                word[:x+1],
+                font=ImageFont.truetype(
+                    random.choice(fnts),
+                    random.randint(18, 32),
+                    encoding="unic"
+                ),
+                fill=random.randint(140, 255)
+            )
+            image = cropper(image)
+            spaces.append(image.shape[1])
+        if random.randint(0, 1) == 1:
+            image = np.invert(image)
+        spaces.pop(0)
+        spaces.pop(-1)
+        spaces.pop(-1)
+        factor = 32 / image.shape[0]
+        bspaces = np.round(np.array(spaces) * factor).astype('int')
+        bimage = np.array(Image.fromarray(image).resize((int(round(image.shape[1] * factor)), int(round(image.shape[0] * factor)))))
+        nons = bspaces + np.append(np.diff(bspaces) // 2, int(round(np.average(np.diff(bspaces) // 2))))
+        bimage = np.array(img_warper(bimage, False))
+        for x in range(len(spaces)):
+            space_index = bspaces[x]
+            non_space_index = nons[x]
+            if space_index + 8 < len(bimage[0]):
+                data.append(bimage[:, space_index - 6:space_index + 6])
+                labels.append(1)
+            if non_space_index + 8 < len(bimage[0]):
+                data.append(bimage[:, non_space_index - 6:non_space_index + 6])
+                labels.append(0)
+    return np.array(data, dtype='uint8'), np.array(labels)
+
