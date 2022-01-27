@@ -392,18 +392,10 @@ def character_spaces(samples: int, fnts: str) -> tuple[np.ndarray, np.ndarray]:
         while len(word) < 5:
             word = sentence_make(1)
         spaces = []
+        fnt = ImageFont.truetype(random.choice(fnts), random.randint(18, 32), encoding="unic")
         for x in range(len(word)):
             image = Image.new(mode='L', color=random.randint(0, 100), size=(1000, 100))
-            ImageDraw.Draw(image).text(
-                (30, 35),
-                word[:x+1],
-                font=ImageFont.truetype(
-                    random.choice(fnts),
-                    random.randint(18, 32),
-                    encoding="unic"
-                ),
-                fill=random.randint(140, 255)
-            )
+            ImageDraw.Draw(image).text((30, 35), word[:x+1], font=fnt, fill=random.randint(140, 255))
             image = cropper(image)
             spaces.append(image.shape[1])
         if random.randint(0, 1) == 1:
@@ -413,8 +405,8 @@ def character_spaces(samples: int, fnts: str) -> tuple[np.ndarray, np.ndarray]:
         spaces.pop(-1)
         factor = 32 / image.shape[0]
         bspaces = np.round(np.array(spaces) * factor).astype('int')
-        bimage = np.array(Image.fromarray(image).resize((int(round(image.shape[1] * factor)), int(round(image.shape[0] * factor)))))
-        nons = bspaces + np.append(np.diff(bspaces) // 2, int(round(np.average(np.diff(bspaces) // 2))))
+        bimage = np.array(Image.fromarray(image).resize((round(image.shape[1] * factor), round(image.shape[0] * factor))))
+        nons = bspaces + np.append(np.diff(bspaces) // 2, round(np.average(np.diff(bspaces) // 2)))
         bimage = np.array(img_warper(bimage, False))
         for x in range(len(spaces)):
             space_index = bspaces[x]

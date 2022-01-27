@@ -164,35 +164,35 @@ def criticals(data: list, idx: bool = False) -> list:
     crits = []
     if not idx:
         idx = range(len(data))
-    else:
-        idx = [round((x[1] - x[0]) / 2) + x[0] for x in idx]
+    """ else:
+        idx = [round((x[1] - x[0]) / 2) + x[0] for x in idx] """
     for i, x in enumerate(idx, 1):
         if i > len(idx) - 2:
             break
-        if data[i - 1] <= data[i] and data[i + 1] <= data[i]:
+        if data[i - 1] < data[i] and data[i + 1] < data[i]:
             crits.append((x, 'max'))
-        if data[i - 1] >= data[i] and data[i + 1] >= data[i]:
+        if data[i - 1] > data[i] and data[i + 1] > data[i]:
             crits.append((x, 'min'))
         if grads[i] > 0 and grads[i + 1] < 0 or grads[i] < 0 and grads[i + 1] > 0:
             crits.append((x, 'dzero'))
-        if grads[i - 1] <= grads[i] and grads[i + 1] <= grads[i]:
+        if grads[i - 1] < grads[i] and grads[i + 1] < grads[i]:
             crits.append((x, 'dmax'))
-        if grads[i - 1] >= grads[i] and grads[i + 1] >= grads[i]:
+        if grads[i - 1] > grads[i] and grads[i + 1] > grads[i]:
             crits.append((x, 'dmin'))
         if grads2[i] > 0 and grads2[i + 1] < 0 or grads2[i] < 0 and grads2[i + 1] > 0:
             crits.append((x, 'ddzero'))
-        if grads2[i - 1] <= grads2[i] and grads2[i + 1] <= grads2[i]:
+        if grads2[i - 1] < grads2[i] and grads2[i + 1] < grads2[i]:
             crits.append((x, 'ddmax'))
-        if grads2[i - 1] >= grads2[i] and grads2[i + 1] >= grads2[i]:
+        if grads2[i - 1] > grads2[i] and grads2[i + 1] > grads2[i]:
             crits.append((x, 'ddmin'))
     return crits
 
-def img_slicer(dims: tuple[int, int], img: Image, step: int or tuple[int, int], way: str) -> tuple[np.ndarray, list]:
+def img_slicer(img: Image, sdims: tuple[int, int], step: int or tuple[int, int], way: str) -> tuple[np.ndarray, list]:
     """
     Slice an image into smaller pieces
 
     Args:
-        dims (tuple[int, int]): Dimensions of a image slice (y axis, x axis)
+        sdims (tuple[int, int]): Dimensions of a image slice (y axis, x axis)
         img (Image): Image
         step (intortuple[int, int]): Step distance between slices (y axis, x axis)
         way (str): String indicating slicing method
@@ -206,35 +206,37 @@ def img_slicer(dims: tuple[int, int], img: Image, step: int or tuple[int, int], 
     img = np.array(img)
     slices = []
     idx = []
+    shape = img.shape
     if way == 'v':
-        img = np.array(Image.fromarray(img).resize((round(dims[0] / img.shape[0] * img.shape[1]), dims[0])))
-        border = round(dims[1] / 2)
-        idx = [(x - border, x + border) for x in range(border, img.shape[1] - border, step)]
-        for x in range(border, img.shape[1] - border, step):
+        #print(f'Sliced image shape {shape} resized at {(sdims[0], round(sdims[0] / shape[0] * shape[1]))} sdims {sdims}')
+        img = np.array(Image.fromarray(img).resize((round(sdims[0] / shape[0] * shape[1]), sdims[0])))
+        border = round(sdims[1] / 2)
+        idx = [(x - border, x + border) for x in range(border, shape[1] - border, step)]
+        for x in range(border, shape[1] - border, step):
             slices.append(img[:, x - border:x + border])
     elif way == 'h':
-        img = np.array(Image.fromarray(img).resize((dims[1], round(dims[1] / img.shape[1] * img.shape[0]))))
-        border = round(dims[0] / 2)
-        idx = [(x - border, x + border) for x in range(border, img.shape[0] - border, step)]
-        for y in range(border, img.shape[0] - border, step):
+        img = np.array(Image.fromarray(img).resize((sdims[1], round(sdims[1] / shape[1] * shape[0]))))
+        border = round(sdims[0] / 2)
+        idx = [(x - border, x + border) for x in range(border, shape[0] - border, step)]
+        for y in range(border, shape[0] - border, step):
             slices.append(img[y - border:y + border, :])
     else:
         assert len(step) == 2, 'Step must be tuple for 2 way slicing'
         img = np.array(Image.fromarray(img).resize((
-            round((img.shape[1] / dims[1]) + 0.4999) * dims[1],
-            round((img.shape[0] / dims[0]) + 0.4999) * dims[0]
+            round((shape[1] / sdims[1]) + 0.4999) * sdims[1],
+            round((shape[0] / sdims[0]) + 0.4999) * sdims[0]
         )))
-        yborder, xborder = round(dims[0] / 2), round(dims[1] / 2)
-        for y in range(yborder, img.shape[0] - round(yborder / 2), step[0]):
-            for x in range(xborder, img.shape[1] - round(xborder / 2), step[1]):
+        yborder, xborder = round(sdims[0] / 2), round(sdims[1] / 2)
+        for y in range(yborder, shape[0] - round(yborder / 2), step[0]):
+            for x in range(xborder, shape[1] - round(xborder / 2), step[1]):
                 idx.append((
-                    y - round(dims[0] / 2),
-                    y + round(dims[0] / 2),
-                    x - round(dims[1] / 2),
-                    x + round(dims[1] / 2)
+                    y - round(sdims[0] / 2),
+                    y + round(sdims[0] / 2),
+                    x - round(sdims[1] / 2),
+                    x + round(sdims[1] / 2)
                 ))
-        for y in range(yborder, img.shape[0] - round(yborder / 2), step[0]):
-            for x in range(xborder, img.shape[1] - round(xborder / 2), step[1]):
+        for y in range(yborder, shape[0] - round(yborder / 2), step[0]):
+            for x in range(xborder, shape[1] - round(xborder / 2), step[1]):
                 slices.append(img[y - yborder:y + yborder, x - xborder:x + xborder])
     return np.array(slices), idx
 
@@ -261,7 +263,7 @@ def fit2dims(dims: tuple[int, int], img: Image) -> np.ndarray:
     Resize an image slightly so that it can be sliced into a whole integer quantity without cropping based on the slice dimensions given
 
     Args:
-        dims (tuple[int, int]): Dimensions of the image
+        dims (tuple[int, int]): Dimensions of the image (y, x)
         img (Image): Image to be modified
 
     Returns:
@@ -272,37 +274,6 @@ def fit2dims(dims: tuple[int, int], img: Image) -> np.ndarray:
         round((img.shape[1] / dims[1]) + 0.4999) * dims[1],
         round((img.shape[0] / dims[0]) + 0.4999) * dims[0]
     )))
-
-def diff_compress(data: list) -> list[int]:
-    """
-    Create a list of the midway points when given a list of boundry points
-
-    Input: (1, 5), (4, 12), (50, 100)
-    Output: 3, 8, 75
-
-    Args:
-        data (list): A list of coordinates that define boundries around a point
-
-    Returns:
-        list[int]: A list of center points
-    """
-    return [round((x[1] - x[0]) / 2) + x[0] for x in data]
-
-def diff_expand(data: list, step: int) -> list[tuple[int, int]]:
-    """
-    Create a list of boundary points when given a list of points and the distance from the center to the boundry
-
-    Input: [5, 10, 50], 5
-    Output: [(0, 10), (5, 15), (45, 55)]
-
-    Args:
-        data (list): List of numbers
-        step (int): Distance from the input value to the boundry
-
-    Returns:
-        list[tuple[int, int]]: List of coordinates of boundry values around the input points
-    """
-    return [(x - step, x + step) for x in data]
 
 def bin2num(inp: list) -> int:
     """
@@ -348,13 +319,10 @@ def img_splitter(img: Image.Image, orig_dims: tuple[int, int], sdims: tuple) -> 
         ksize, kdist = 25, 17
     elif area < 65536:
         ksize, kdist = 7, 5
-    elif area < 8192:
-        print("Image too small")
-        return False
     splits.append(fit2dims(sdims, img))
     splits.append(fit2dims(sdims, Image.fromarray(np.invert(np.array(img)))))
     splits.append(fit2dims(sdims, Image.fromarray(cv.Laplacian(np.array(img), cv.CV_8U))))
-    splits.append(fit2dims(sdims, Image.fromarray(cv.adaptiveThreshold(np.array(img), 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, ksize, kdist))))
+    splits.append(fit2dims(sdims, Image.fromarray(cv.adaptiveThreshold(np.array(img), 254, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, ksize, kdist))))
     return splits
 
 def expand_data(inp: np.ndarray, top: int, dtype: type ='uint8'):
@@ -374,6 +342,36 @@ def expand_data(inp: np.ndarray, top: int, dtype: type ='uint8'):
     mxm = np.max(inp)
     inp = np.round(inp * (top / mxm)).astype(dtype)
     return inp
+
+def halfpoint(num1: int or float, num2: int or float):
+    """
+    Gives the halfway point between input numbers
+
+    Args:
+        num1 (intorfloat): A number
+        num2 (intorfloat): A number
+
+    Returns:
+        [type]: Halfway point number
+    """
+    if num2 > num1:
+        mid = ((num2 - num1) / 2) + num1
+    else:
+        mid = ((num1 - num2) / 2) + num2
+    return mid
+
+def aroundpoint(num:int or float, step: int or float) -> tuple[int, int]:
+    """
+    Gives the points around a number seperated by the step size
+
+    Args:
+        num ([type]): number
+        step ([type]): distance from input number
+
+    Returns:
+        [type]: tuple containing the points surrounding the input
+    """
+    return (num - step, num + step)
 
 class DataGen:
     """
