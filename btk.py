@@ -3,6 +3,7 @@
 import pickle
 import time
 from numbers import Number
+import os
 import torch
 import cv2 as cv
 import numpy as np
@@ -31,7 +32,7 @@ gaussblurk = np.true_divide([
                             [0,  0,   0,   5,   0,  0,  0]
                         ], 256)
 
-def pickle_set(trainx: np.ndarray, trainy: np.ndarray, valx: np.ndarray, valy: np.ndarray) -> str:
+def pickle_set(trainx: np.ndarray, trainy: np.ndarray, valx: np.ndarray, valy: np.ndarray, datadir: str) -> str:
     """
     Create pickle files for a machine learning data set
 
@@ -40,23 +41,24 @@ def pickle_set(trainx: np.ndarray, trainy: np.ndarray, valx: np.ndarray, valy: n
         trainy (np.ndarray): Training labels
         valx (np.ndarray): Validation data
         valy (np.ndarray): Validation labels
+        dir (str): Target directory
 
     Returns:
         str: Identifier for locating files
     """
     timecode = round(time.time())
-    with open(f'trainx-{timecode}', 'ab') as pkf:
+    with open(f"{os.environ['dstore']}{datadir}\\trainx-{timecode}", 'ab') as pkf:
         pickle.dump(trainx, pkf)
-    with open(f'trainy-{timecode}', 'ab') as pkf:
+    with open(f"{os.environ['dstore']}{datadir}\\traiyx-{timecode}", 'ab') as pkf:
         pickle.dump(trainy, pkf)
-    with open(f'valx-{timecode}', 'ab') as pkf:
+    with open(f"{os.environ['dstore']}{datadir}\\valx-{timecode}", 'ab') as pkf:
         pickle.dump(valx, pkf)
-    with open(f'valy-{timecode}', 'ab') as pkf:
+    with open(f"{os.environ['dstore']}{datadir}\\valy-{timecode}", 'ab') as pkf:
         pickle.dump(valy, pkf)
     print(timecode)
     return timecode
 
-def depickler(trainx: str, trainy: str, valx: str, valy: str) -> tuple[str, str, str, str]:
+def depickler(trainx: str, trainy: str, valx: str, valy: str, datadir: str) -> tuple[str, str, str, str]:
     """
     Loads a set of pickle files for training neural networks
 
@@ -65,17 +67,18 @@ def depickler(trainx: str, trainy: str, valx: str, valy: str) -> tuple[str, str,
         trainy (str): Training labels file path
         valx (str): Validation data file path
         valy (str): Validation labels file path
+        dir (str): Target directory
 
     Returns:
         tuple[str, str, str, str]: Data sets
     """
-    with open(f'{trainx}', 'rb') as pkf:
+    with open(f"{os.environ['dstore']}{datadir}\\{trainx}", 'rb') as pkf:
         trainxx = pickle.load(pkf)
-    with open(f'{trainy}', 'rb') as pkf:
+    with open(f"{os.environ['dstore']}{datadir}\\{trainy}", 'rb') as pkf:
         trainyy = pickle.load(pkf)
-    with open(f'{valx}', 'rb') as pkf:
+    with open(f"{os.environ['dstore']}{datadir}\\{valx}", 'rb') as pkf:
         valxx = pickle.load(pkf)
-    with open(f'{valy}', 'rb') as pkf:
+    with open(f"{os.environ['dstore']}{datadir}\\{valy}", 'rb') as pkf:
         valyy = pickle.load(pkf)
     return trainxx, trainyy, valxx, valyy
 
@@ -125,7 +128,7 @@ def standardize(data: np.ndarray) -> list:
     Returns:
         [type]: Standardized input data
     """
-    return np.array((data - np.mean(data)) / np.std(data), dtype='float32')
+    return np.array((data - np.mean(data)) / np.std(data), dtype=np.float32)
 
 def smooth_avg(data: list[Number]) -> list[Number]:
     """
