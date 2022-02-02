@@ -17,13 +17,16 @@ with open(f"{os.environ['Tools']}vfonts", encoding='utf8') as f:
 with open(f"{os.environ['Base']}Resources\\engwords.txt", encoding='utf8') as f:
     words = f.read().splitlines()
 
-case_chars = list("CIJKOPSUVWXYZ")
-hard_chars = list('c6eGL1o0QqpbDrFTtfNH2zRkdaBE')
+case_chars = list('COPSVWXZ')
+icase_chars = list('copsvwxz')
+hardc = list('o0OIl1Q')
 
 chars1 = list(string.ascii_letters)
 chars1.extend(string.digits)
+allchars = chars1.copy()
 for x in case_chars:
     chars1.remove(x)
+
 
 logging.basicConfig(
     filename=f"{os.environ['base']}\\ComputerVision\\reading\\datagen.log",

@@ -49,13 +49,12 @@ def pickle_set(trainx: np.ndarray, trainy: np.ndarray, valx: np.ndarray, valy: n
     timecode = round(time.time())
     with open(f"{os.environ['dstore']}{datadir}\\trainx-{timecode}", 'ab') as pkf:
         pickle.dump(trainx, pkf)
-    with open(f"{os.environ['dstore']}{datadir}\\traiyx-{timecode}", 'ab') as pkf:
+    with open(f"{os.environ['dstore']}{datadir}\\trainy-{timecode}", 'ab') as pkf:
         pickle.dump(trainy, pkf)
     with open(f"{os.environ['dstore']}{datadir}\\valx-{timecode}", 'ab') as pkf:
         pickle.dump(valx, pkf)
     with open(f"{os.environ['dstore']}{datadir}\\valy-{timecode}", 'ab') as pkf:
         pickle.dump(valy, pkf)
-    print(timecode)
     return timecode
 
 def depickler(trainx: str, trainy: str, valx: str, valy: str, datadir: str) -> tuple[str, str, str, str]:
@@ -190,7 +189,7 @@ def criticals(data: list, idx: bool = False) -> list:
             crits.append((x, 'ddmin'))
     return crits
 
-def img_slicer(img: Image, sdims: tuple[int, int], step: int or tuple[int, int], way: str) -> tuple[np.ndarray, list]:
+def img_slicer(img: Image.Image, sdims: tuple[int, int], step: int or tuple[int, int], way: str) -> tuple[np.ndarray, list]:
     """
     Slice an image into smaller pieces
 
@@ -206,30 +205,24 @@ def img_slicer(img: Image, sdims: tuple[int, int], step: int or tuple[int, int],
     Returns:
         tuple[np.ndarray, list]: Array of image slices as array objects and a list of the boundry coordinates for each slice
     """
-    img = np.array(img)
     slices = []
     idx = []
-    shape = img.shape
     if way == 'v':
-        #print(f'Sliced image shape {shape} resized at {(sdims[0], round(sdims[0] / shape[0] * shape[1]))} sdims {sdims}')
-        img = np.array(Image.fromarray(img).resize((round(sdims[0] / shape[0] * shape[1]), sdims[0])))
-        border = round(sdims[1] / 2)
+        img = np.array(force_dim(img, sdims[0], 1))
+        shape, border = img.shape, round(sdims[1] / 2)
         idx = [(x - border, x + border) for x in range(border, shape[1] - border, step)]
         for x in range(border, shape[1] - border, step):
             slices.append(img[:, x - border:x + border])
     elif way == 'h':
-        img = np.array(Image.fromarray(img).resize((sdims[1], round(sdims[1] / shape[1] * shape[0]))))
-        border = round(sdims[0] / 2)
+        img = np.array(force_dim(img, sdims[1], 0))
+        shape, border = img.shape, round(sdims[0] / 2)
         idx = [(x - border, x + border) for x in range(border, shape[0] - border, step)]
         for y in range(border, shape[0] - border, step):
             slices.append(img[y - border:y + border, :])
     else:
         assert len(step) == 2, 'Step must be tuple for 2 way slicing'
-        img = np.array(Image.fromarray(img).resize((
-            round((shape[1] / sdims[1]) + 0.4999) * sdims[1],
-            round((shape[0] / sdims[0]) + 0.4999) * sdims[0]
-        )))
-        yborder, xborder = round(sdims[0] / 2), round(sdims[1] / 2)
+        img = np.array(fit2dims(img, (32, 12)))
+        shape, yborder, xborder = img.shape, round(sdims[0] / 2), round(sdims[1] / 2)
         for y in range(yborder, shape[0] - round(yborder / 2), step[0]):
             for x in range(xborder, shape[1] - round(xborder / 2), step[1]):
                 idx.append((
@@ -242,6 +235,15 @@ def img_slicer(img: Image, sdims: tuple[int, int], step: int or tuple[int, int],
             for x in range(xborder, shape[1] - round(xborder / 2), step[1]):
                 slices.append(img[y - yborder:y + yborder, x - xborder:x + xborder])
     return np.array(slices), idx
+
+def force_dim(img, dim, axis):
+    if axis == 1:
+        return img.resize((round(dim / img.size[1] * img.size[0]), dim))
+    if axis == 0:
+        return img.resize((dim, round(dim / img.size[1] * img.size[0])))
+
+def sharpen(img):
+    return cv.filter2D(img, -1, sharpenk)
 
 def count(items: list) -> list:
     """
@@ -261,7 +263,7 @@ def count(items: list) -> list:
     uniqs.sort(key=row2, reverse=True)
     return uniqs
 
-def fit2dims(dims: tuple[int, int], img: Image) -> np.ndarray:
+def fit2dims(img: Image.Image, dims: tuple[int, int]) -> Image.Image:
     """
     Resize an image slightly so that it can be sliced into a whole integer quantity without cropping based on the slice dimensions given
 
@@ -272,11 +274,10 @@ def fit2dims(dims: tuple[int, int], img: Image) -> np.ndarray:
     Returns:
         np.ndarray: Resized image in array format
     """
-    img = np.array(img)
-    return np.array(Image.fromarray(img).resize((
-        round((img.shape[1] / dims[1]) + 0.4999) * dims[1],
-        round((img.shape[0] / dims[0]) + 0.4999) * dims[0]
-    )))
+    return img.resize((
+        round((img.size[0] / dims[1]) + 0.4999) * dims[1],
+        round((img.size[1] / dims[0]) + 0.4999) * dims[0]
+    ))
 
 def bin2num(inp: list) -> int:
     """
@@ -303,7 +304,7 @@ def bin2num(inp: list) -> int:
             bin_state += 1
     return total
 
-def img_splitter(img: Image.Image, orig_dims: tuple[int, int], sdims: tuple) -> list[Image.Image]:
+def img_splitter(img: np.ndarray) -> list[np.ndarray]:
     """
     Create high contrast images from the input image for OCR
 
@@ -315,17 +316,18 @@ def img_splitter(img: Image.Image, orig_dims: tuple[int, int], sdims: tuple) -> 
     Returns:
         list[Image.Image]: A list containing 4 images in array format
     """
-    area = orig_dims[0] * orig_dims[1]
+    area = img.shape[0] * img.shape[1]
     splits = []
-    ksize, kdist = 11, 9
     if area > 4194304:
         ksize, kdist = 25, 17
     elif area < 65536:
         ksize, kdist = 7, 5
-    splits.append(fit2dims(sdims, img))
-    splits.append(fit2dims(sdims, Image.fromarray(np.invert(np.array(img)))))
-    splits.append(fit2dims(sdims, Image.fromarray(cv.Laplacian(np.array(img), cv.CV_8U))))
-    splits.append(fit2dims(sdims, Image.fromarray(cv.adaptiveThreshold(np.array(img), 254, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, ksize, kdist))))
+    else:
+        ksize, kdist = 11, 9
+    splits.append(img)
+    splits.append(np.invert(img))
+    splits.append(cv.Laplacian(img, cv.CV_8U))
+    splits.append(cv.adaptiveThreshold(img, 254, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, ksize, kdist))
     return splits
 
 def expand_data(inp: np.ndarray, top: int, dtype: type ='uint8'):
