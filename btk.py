@@ -7,6 +7,7 @@ import os
 import torch
 import cv2 as cv
 import numpy as np
+import random
 from PIL import Image
 
 #Kernels
@@ -57,6 +58,18 @@ def pickle_set(trainx: np.ndarray, trainy: np.ndarray, valx: np.ndarray, valy: n
         pickle.dump(valy, pkf)
     return timecode
 
+def odder(num: int) -> int:
+    """Forces a number to be odd"""
+    if num % 2 == 0:
+        num += 1
+    return int(num)
+
+def evener(num: int) -> int:
+    """Forces a number to be even"""
+    if num % 2 != 0:
+        num += 1
+    return int(num)
+
 def depickler(trainx: str, trainy: str, valx: str, valy: str, datadir: str) -> tuple[str, str, str, str]:
     """
     Loads a set of pickle files for training neural networks
@@ -81,7 +94,7 @@ def depickler(trainx: str, trainy: str, valx: str, valy: str, datadir: str) -> t
         valyy = pickle.load(pkf)
     return trainxx, trainyy, valxx, valyy
 
-def grey_np(img: Image) -> np.ndarray:
+def grey_np(img: np.ndarray) -> np.ndarray:
     """
     Return a greyscale version of the input image
 
@@ -92,13 +105,15 @@ def grey_np(img: Image) -> np.ndarray:
         np.ndarray: Greyscale Image
     """
     img = np.array(img)
+    if len(img.shape) == 2:
+        return img
     if img.shape[2] == 4:
         greyscaler = [0.21, 0.72, 0.07, 0]
     elif img.shape[2] == 3:
         greyscaler = [0.21, 0.72, 0.07]
     else:
         print("Invalid Image Colors")
-        return
+        return None
     return np.dot(np.array(img), greyscaler).astype('uint8')
 
 def normalize(data: np.ndarray) -> list:
@@ -189,7 +204,7 @@ def criticals(data: list, idx: bool = False) -> list:
             crits.append((x, 'ddmin'))
     return crits
 
-def img_slicer(img: Image.Image, sdims: tuple[int, int], step: int or tuple[int, int], way: str) -> tuple[np.ndarray, list]:
+def img_slicer(img: np.ndarray, sdims: tuple[int, int], step: int or tuple[int, int], axis: int) -> tuple[np.ndarray, list]:
     """
     Slice an image into smaller pieces
 
@@ -197,52 +212,93 @@ def img_slicer(img: Image.Image, sdims: tuple[int, int], step: int or tuple[int,
         sdims (tuple[int, int]): Dimensions of a image slice (y axis, x axis)
         img (Image): Image
         step (intortuple[int, int]): Step distance between slices (y axis, x axis)
-        way (str): String indicating slicing method
-            'v' to slice using only verical cuts
-            'h' to slice using only horizontal cuts
-            'm' to slice in both orientations
+        axis (int): String indicating slicing method
+            1 to slice using only verical cuts
+            0 to slice using only horizontal cuts
+            2 to slice in both orientations
 
     Returns:
         tuple[np.ndarray, list]: Array of image slices as array objects and a list of the boundry coordinates for each slice
     """
     slices = []
-    idx = []
-    if way == 'v':
-        img = np.array(force_dim(img, sdims[0], 1))
+    assert axis in [0, 1, 2], 'Invalid Slicing Method'
+    if axis == 1:
         shape, border = img.shape, round(sdims[1] / 2)
-        idx = [(x - border, x + border) for x in range(border, shape[1] - border, step)]
         for x in range(border, shape[1] - border, step):
             slices.append(img[:, x - border:x + border])
-    elif way == 'h':
-        img = np.array(force_dim(img, sdims[1], 0))
+    elif axis == 0:
         shape, border = img.shape, round(sdims[0] / 2)
-        idx = [(x - border, x + border) for x in range(border, shape[0] - border, step)]
         for y in range(border, shape[0] - border, step):
             slices.append(img[y - border:y + border, :])
-    else:
-        assert len(step) == 2, 'Step must be tuple for 2 way slicing'
-        img = np.array(fit2dims(img, (32, 12)))
+    elif axis == 2:
+        assert isinstance(step, tuple), 'Step must be tuple for 2 way slicing'
         shape, yborder, xborder = img.shape, round(sdims[0] / 2), round(sdims[1] / 2)
         for y in range(yborder, shape[0] - round(yborder / 2), step[0]):
             for x in range(xborder, shape[1] - round(xborder / 2), step[1]):
-                idx.append((
-                    y - round(sdims[0] / 2),
-                    y + round(sdims[0] / 2),
-                    x - round(sdims[1] / 2),
-                    x + round(sdims[1] / 2)
-                ))
-        for y in range(yborder, shape[0] - round(yborder / 2), step[0]):
-            for x in range(xborder, shape[1] - round(xborder / 2), step[1]):
                 slices.append(img[y - yborder:y + yborder, x - xborder:x + xborder])
-    return np.array(slices), idx
+    return np.array(slices)
 
-def force_dim(img, dim, axis):
+def resize(img: np.ndarray, dims: tuple[int, int]) -> np.ndarray:
+    """
+    Resize an image array and return an array
+
+    Args:
+        img (np.ndarray): Image in array form
+        dims (tuple[int, int]): (y, x)
+
+    Returns:
+        np.ndarray: Image in array form resized
+    """
+    img = Image.fromarray(img)
+    img = np.array(img.resize((dims[1], dims[0])))
+    return img
+
+def gen_index(dims: tuple[int, int], sdims: tuple[int, int], step: int, axis: int) -> list[tuple[int, int]]:
+    """Create custom index for image slices that correspond to pixel coordinates"""
+    assert axis in [0, 1, 2], 'Invalid Axis'
     if axis == 1:
-        return img.resize((round(dim / img.size[1] * img.size[0]), dim))
-    if axis == 0:
-        return img.resize((dim, round(dim / img.size[1] * img.size[0])))
+        border = round(sdims[1] / 2)
+        idx = [(int(x - border), int(x + border)) for x in range(border, dims[1] - border, step)]
+    elif axis == 0:
+        border = round(sdims[0] / 2)
+        idx = [(int(x - border), int(x + border)) for x in range(border, dims[0] - border, step)]
+    elif axis == 2:
+        yborder, xborder = round(sdims[0] / 2), round(sdims[1] / 2)
+        idx = []
+        for y in range(yborder, dims[0] - round(yborder / 2), step[0]):
+            for x in range(xborder, dims[1] - round(xborder / 2), step[1]):
+                idx.append((
+                    int(y - round(sdims[0] / 2)),
+                    int(y + round(sdims[0] / 2)),
+                    int(x - round(sdims[1] / 2)),
+                    int(x + round(sdims[1] / 2))
+                ))
+    return idx
 
-def sharpen(img):
+def force_dim(img: np.ndarray, dim: int, axis: int) -> np.ndarray:
+    """
+    Resize an image forcing one dimension to the input dimension and scaling the other dimension by the same factor
+
+    in and out both np arrays
+
+    Args:
+        img (np.ndarray): Input image
+        dim (tuple[int, int]): Dimensions to scale image to
+        axis (int): Principal scaling axis
+
+    Returns:
+        np.ndarray: Rescaled image
+    """
+    assert axis in [1, 0], 'Invalid Axis'
+    img = Image.fromarray(img)
+    if axis == 1:
+        img = img.resize((round(dim / img.size[1] * img.size[0]), dim))
+    elif axis == 0:
+        img = img.resize((dim, round(dim / img.size[1] * img.size[0])))
+    return np.array(img)
+
+def sharpen(img: np.ndarray) -> np.ndarray:
+    """Apply sharpen filter to image"""
     return cv.filter2D(img, -1, sharpenk)
 
 def count(items: list) -> list:
@@ -263,7 +319,7 @@ def count(items: list) -> list:
     uniqs.sort(key=row2, reverse=True)
     return uniqs
 
-def fit2dims(img: Image.Image, dims: tuple[int, int]) -> Image.Image:
+def fit2dims(img: np.ndarray, dims: tuple[int, int]) -> np.ndarray:
     """
     Resize an image slightly so that it can be sliced into a whole integer quantity without cropping based on the slice dimensions given
 
@@ -274,10 +330,11 @@ def fit2dims(img: Image.Image, dims: tuple[int, int]) -> Image.Image:
     Returns:
         np.ndarray: Resized image in array format
     """
-    return img.resize((
-        round((img.size[0] / dims[1]) + 0.4999) * dims[1],
-        round((img.size[1] / dims[0]) + 0.4999) * dims[0]
-    ))
+    img = Image.fromarray(img)
+    img = img.resize((round((img.size[0] / dims[1]) + 0.4999) * dims[1],
+                      round((img.size[1] / dims[0]) + 0.4999) * dims[0]
+                    ))
+    return np.array(img)
 
 def bin2num(inp: list) -> int:
     """
@@ -378,16 +435,72 @@ def aroundpoint(num:int or float, step: int or float) -> tuple[int, int]:
     """
     return (num - step, num + step)
 
+def timer(fnc):
+    """Timing decorator"""
+    def wrapper(*args, **kwargs):
+        start = time.time()
+        outp = fnc(*args, **kwargs)
+        print(f'Execution time: {time.time() - start}')
+        return outp
+    return wrapper
+
+def find_area(coords):
+    """Find area of a box when given the box corners in a tuple"""
+    return (coords[1] - coords[0]) * (coords[3] - coords[2])
+
+def mlstats(nhist, measure, tm1=None, ohist=None, tm2=None):
+    """Show stats from ML training runs, one or two cycles averaged"""
+    score = (max(nhist.get(f"val_{measure}")) + (2.7182818**-(min(nhist.get("val_loss")))) + (sum(nhist.get(f"val_{measure}")[-7:]) / 7) + (sum(2.7182818**-(np.array(nhist.get("val_loss")[-7:]))) / 7)) / 4
+    bvacc = max(nhist.get(f"val_{measure}"))
+    bvloss = min(nhist.get("val_loss"))
+    avacc = sum(nhist.get(f"val_{measure}")[-7:]) / 7
+    avloss = sum(nhist.get("val_loss")[-7:]) / 7
+    if tm1:
+        samps = len(nhist.get(f"val_{measure}")) * 32 * (192 + 64) / (tm1)
+    if ohist is None:
+        print(f'Score: {score}')
+        print(f'Best VAccuracy: {bvacc}')
+        print(f'Best VLoss: {bvloss}')
+        print(f'Last 7 Avg VAccuracy: {avacc}')
+        print(f'Last 7 Avg VLoss: {avloss}')
+        if tm1:
+            print(f'Training time: {tm1}')
+            print(f'Samples per second: {samps}')
+    else:
+        oscore = (max(ohist.get(f"val_{measure}")) + (2.7182818**-(min(ohist.get("val_loss")))) + (sum(ohist.get(f"val_{measure}")[-7:]) / 7) + (sum(2.7182818**-(np.array(ohist.get("val_loss")[-7:]))) / 7)) / 4
+        obvacc = max(ohist.get(f"val_{measure}"))
+        obvloss = min(ohist.get("val_loss"))
+        oavacc = sum(ohist.get(f"val_{measure}")[-7:]) / 7
+        oavloss = sum(ohist.get("val_loss")[-7:]) / 7
+        if tm1 and tm2:
+            osamps = len(ohist.get(f"val_{measure}")) * 32 * (192 + 64) / (tm2)
+        print(f'Score: {(score + oscore) / 2}')
+        print(f'Best VAccuracy: {(obvacc + bvacc) / 2}')
+        print(f'Best VLoss: {(obvloss + bvloss) / 2}')
+        print(f'Last 7 Avg VAccuracy: {(oavacc + avacc) / 2}')
+        print(f'Last 7 Avg VLoss: {(oavloss + avloss) / 2}')
+        if tm1 and tm2:
+            print(f'Training time: {(tm1 + tm2) / 2}')
+            print(f'Samples per second: {(osamps + samps) / 2}')
+
+def zshuffle(data, labels):
+    """shuffle seperate data sets while maintaining cohesion"""
+    temp = list(zip(data, labels))
+    random.shuffle(temp)
+    data = [x[0] for x in temp]
+    labels = [x[1] for x in temp]
+    return np.array(data), np.array(labels)
+
 class DataGen:
     """
     Custom data generator class for pytorch
     """
-    def __init__(self, data, labels=False, batch_len=16):
-        self.data = data
+    def __init__(self, data, labels, batch_len=16):
         self.labels = labels
+        self.data = data
         self.batch_len = batch_len
         self.i = 0
-        self.maxi = round(self.data.shape[0] / self.batch_len) - 2
+        self.maxi = round(len(self.data) / self.batch_len) - 2
 
     def __iter__(self):
         return self
@@ -398,9 +511,6 @@ class DataGen:
     def __next__(self):
         if self.i >= self.maxi:
             raise StopIteration
-        if isinstance(self.labels, bool):
-            self.i += 1
-            return self.data[(self.i - 1) * self.batch_len:self.i * self.batch_len]
         self.i += 1
         return self.data[(self.i - 1) * self.batch_len:self.i * self.batch_len], self.labels[(self.i - 1) * self.batch_len:self.i * self.batch_len]
 
