@@ -1,32 +1,48 @@
 """Module for generating datasets for ML"""
-
-import os
-import logging
-import random
 import string
+import logging
+import os
+import random
 import cv2 as cv
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFont
+import btk
+
+""" grids = []
+bglst = []
+for x in os.walk(f"{os.environ['Base']}Resources\\MiniDataSets\\ADEChallengeData2016\\images\\training"):
+    for y in x[2]:
+        bglst.append(os.path.join(x[0], y))
+for x in os.walk(f"{os.environ['Base']}Resources\\MiniDataSets\\naturebg"):
+    for y in x[2]:
+        bglst.append(os.path.join(x[0], y))
+for x in os.walk(f"{os.environ['Base']}Resources\\MiniDataSets\\grids"):
+    for y in x[2]:
+        grids.append(os.path.join(x[0], y)) """
 
 with open(f"{os.environ['Tools']}tfonts", encoding='utf8') as f:
     trainfonts = [x.strip('\\\n') for x in f.readlines()]
-
 with open(f"{os.environ['Tools']}vfonts", encoding='utf8') as f:
     evalfonts = [x.strip('\\\n') for x in f.readlines()]
-
 with open(f"{os.environ['Base']}Resources\\engwords.txt", encoding='utf8') as f:
     words = f.read().splitlines()
+with open(f"{os.environ['Base']}Resources\\bglist", 'r', encoding='utf8') as f:
+    bglst = f.readlines()
+    bglst = [x.strip('\n') for x in bglst]
+with open(f"{os.environ['Base']}Resources\\gridbgs", 'r', encoding='utf8') as f:
+    grids = f.readlines()
+    grids = [x.strip('\n') for x in grids]
 
-case_chars = list('COPSVWXZ')
-icase_chars = list('copsvwxz')
-hardc = list('o0OIl1Q')
+xtcls = list('o0OIl1Q,. ')
+case_chars = list('ZXWVSPOC')
+icase_chars = list('zxwvspoc')
+xtseg = list('aaettddhsmmonpquvwwyAWLLEMMNNNSYTVWVUHHHHH')
+xtsegwords = ['WAWAWAWA', 'kLkKkKyyYYYyy', 'ununuUNUNN', 'frfttrtrfrtfr', 'dbdbhbdhbdhbd', 'mmmwwmmww', 'THTHTHTHT', 'EEEEFFFFRRR', 'gegegegeeg']
 
-chars1 = list(string.ascii_letters)
-chars1.extend(string.digits)
-allchars = chars1.copy()
-for x in case_chars:
-    chars1.remove(x)
-
+chars = list(string.ascii_letters)
+chars.extend(string.digits)
+chars.extend(list(' ():;.,"\'!@#$%&?+=-'))
+chars_cased = [x for x in chars if x not in case_chars]
 
 logging.basicConfig(
     filename=f"{os.environ['base']}\\ComputerVision\\reading\\datagen.log",
@@ -36,49 +52,176 @@ logging.basicConfig(
     )
 
 def sentence_make(length: int) -> str:
-    """Generate space_index random series of real words from space_index dictionary"""
+    """Generate a random series of real words from a dictionary"""
     i = length
     sentence = []
     while i > 0:
-        sentence.append(random.choice(words))
+        rint = random.choice((0, 1))
+        if rint == 0:
+            sentence.append(random.choice(words))
+        elif rint == 1:
+            sentence.append(str.upper(random.choice(words)))
         i -= 1
     return ' '.join(sentence)
 
-def img_warper(img: Image.Image, roton: bool = True) -> Image.Image:
+def word_make(letters):
+    """Generate a random string from the input character set"""
+    length = random.randint(7, 14)
+    word = [random.choice(letters) for _ in range(length)]
+    return ''.join(word)
+
+def foreground_scan(img):
+    """Scan an image from top to bottom to identify the y-position where the foreground begins"""
+    height = len(img) - 1
+    background_column_pixel_average = img[0].sum()
+    for x in range(0, height):
+        if img[x].sum() != background_column_pixel_average:
+            foreground_start = x - 1
+            break
+    if not 'foreground_start' in locals():
+        foreground_start = random.randint(0, 12)
+    return foreground_start
+
+def cropper(img: Image.Image, axis: int = None) -> np.ndarray:
+    """ Trims excessive whitespace around text on an input image
+
+    Only works with solid backgrounds
+    """
+    img = np.array(img)
+    if axis == 1 or axis is None:
+        img_top = foreground_scan(img)
+        img_bottom = len(img) - 1 - foreground_scan(np.rot90(img, 2))
+    if axis == 0 or axis is None:
+        img_left = foreground_scan(np.rot90(img, 3))
+        img_right = len(img[0]) - 1 - foreground_scan(np.rot90(img, 1))
+    if axis == 1:
+        return img[img_top:img_bottom, :]
+    if axis == 0:
+        return img[:, img_left:img_right]
+    return img[img_top:img_bottom, img_left:img_right]
+
+def img_warper(img: Image.Image, rotate: bool = True) -> Image.Image:
     """Apply random image augmentation to the input image"""
-    choice = random.randint(1, 11)
-    rint1 = random.choice([1, 3, 5, 7])
-    rint2 = random.choice([1, 2, 3])
-    rint3 = random.choice([1, 3, 5])
+    choice = random.randint(1, 10)
+    random_coef_1 = random.choice([1, 3, 5, 7])
+    random_coef_2 = random.choice([1, 2, 3])
+    random_coef_3 = random.choice([1, 3, 5])
     if choice == 1:
-        warp = 'GaussianBlur'
-        img = cv.GaussianBlur(img, (rint3, rint3), rint1)
+        img = cv.GaussianBlur(img, (random_coef_3, random_coef_3), random_coef_1)
     elif choice == 2:
-        warp = 'MedianBlur'
-        img = cv.medianBlur(img, rint3)
+        img = btk.sharpen(img)
     elif choice == 3:
-        warp = 'Erosion'
-        img = cv.erode(img, np.ones((rint2, rint2)), iterations=1)
+        img = cv.erode(img, np.ones((random_coef_2, random_coef_2)), iterations=1)
     elif choice == 4:
-        warp = 'Dilation'
-        img = cv.dilate(img, np.ones((rint2, rint2)), iterations=1)
+        img = cv.dilate(img, np.ones((random_coef_2, random_coef_2)), iterations=1)
     elif choice == 5:
-        warp = 'Laplacian'
-        img = cv.Laplacian(img, cv.CV_8U)
-    elif choice == 6 and roton:
-        warp = 'Rotation'
+        img = cv.adaptiveThreshold(img, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, (choice + random_coef_1 - 1), (2 + random_coef_3))
+    elif choice == 6 and rotate:
         x_len = img.shape[1]
         y_len = img.shape[0]
-        img = cv.warpAffine(img, cv.getRotationMatrix2D((x_len/2.0, y_len/2.0), random.randint(-2 * rint1, 2 * rint1), 1), (x_len, y_len))
+        img = cv.warpAffine(img, cv.getRotationMatrix2D((x_len/2.0, y_len/2.0), random.randint(-2 * random_coef_1, 2 * random_coef_1), 1), (x_len, y_len))
     elif choice == 7:
-        warp = 'ContrastThreshold'
-        img = cv.adaptiveThreshold(img, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, (choice + rint1 - rint3), (2 + rint1))
-    else:
-        warp = 'None'
-    logging.debug('Warp %s, RINTS %s %s %s', warp, rint1, rint2, rint3)
+        img = cv.Laplacian(img, cv.CV_64F)
+        img = np.uint8(np.absolute(img))
+    elif choice == 8:
+        img = np.invert(img)
+    elif choice == 9:
+        img = cv.Canny(img, 50, 200, apertureSize=3)
     return img
 
-def rand_char_img(letterset: str, fnts: list, warp: bool = False) -> tuple[Image.Image, str]:
+def get_random_picture(dimensions: tuple[int, int], d_type: str = 'uint8'):
+    """Load, scale, and slice a random picture"""
+    with Image.open(random.choice(bglst)) as f:
+        img = np.array(f.convert("L"), dtype=d_type)
+    if img.shape[0] < dimensions[0]:
+        img_top = 0
+        img_bottom = img.shape[0]
+    else:
+        img_top = random.randint(0, img.shape[0] - dimensions[0])
+        img_bottom = img_top + dimensions[0]
+    if img.shape[1] < dimensions[1]:
+        img_left = 0
+        img_right = img.shape[1]
+    else:
+        img_left = random.randint(0, img.shape[1] - dimensions[1])
+        img_right = img_left + dimensions[1]
+    if img.shape[0] < dimensions[0] or img.shape[1] < dimensions[1]:
+        img = np.array(Image.fromarray(img).resize((dimensions[1], dimensions[0])))
+    else:
+        img = img[img_top:img_bottom, img_left:img_right]
+    return img
+
+def gen_stripe_image(dimensions: tuple[int, int], d_type: str = 'uint8'):
+    """Procedurally generate an image composed of various paralell lines"""
+    orientation_pick = random.randint(0, 1)
+    if orientation_pick == 0:
+        dimensions = (dimensions[1], dimensions[0])
+    img = np.ones(dimensions, dtype=d_type)
+    line_seed = random.randint(25, 230)
+    space_seed = random.randint(4, 64)
+    for i, _ in enumerate(img):
+        img[i] = (img[i] * line_seed) + random.randint(-20, 20)
+        if i == space_seed:
+            line_seed = random.randint(25, 230)
+            space_seed = random.randint(4, 64)
+    if orientation_pick == 0:
+        img = img.T
+    return img
+
+def get_grid_picture(dimensions: tuple[int, int], d_type: str = 'uint8'):
+    """Load, scale, and slice a random image of a grid"""
+    with Image.open(random.choice(grids)) as f:
+        img = np.array(f.convert("L"), dtype=d_type)
+    img_top = random.randint(0, img.shape[0] - 100)
+    img_left = random.randint(0, img.shape[1] - 100)
+    img = np.array(Image.fromarray(img[
+        img_top:random.randint(img_top + 64, img.shape[0] - 1),
+        img_left:random.randint(img_left + 64, img.shape[1] - 1)
+        ]).resize((dimensions[1], dimensions[0])), dtype=d_type)
+    return img
+
+def get_background(dimensions: tuple[int, int], d_type: str = 'uint8', weights: tuple[int] = (1, 1, 1, 1, 1)) -> list:
+    """
+    Generate a random background from one of 5 types
+
+    Blank background. Random Color
+    White Noise.
+    Random picture of a grid or cityscape
+    Procedurally generated lines
+    Random picture
+
+    Args:
+        dimensions (tuple[int, int]): Dimensions of the output image
+        d_type (str, optional): Data type. Defaults to 'uint8'.
+        weights (tuple[int], optional): Weights for background subtypes. Defaults to (1, 1, 1, 1, 1).
+
+    Returns:
+        list: _description_
+    """
+    background_pick = random.randint(0, sum(weights) - 1)
+    if background_pick in range(0, sum((weights[:1]))):
+        background = np.ones(dimensions, dtype=d_type) * random.randint(1, 255)
+    elif background_pick in range(sum((weights[:1])), sum((weights[:2]))):
+        background = np.random.default_rng().integers(0, random.randint(1, 255), dimensions, dtype=d_type)
+    elif background_pick in range(sum((weights[:2])), sum((weights[:3]))):
+        background = get_grid_picture(dimensions, d_type)
+    elif background_pick in range(sum((weights[:3])), sum((weights[:4]))):
+        background = gen_stripe_image(dimensions, d_type)
+    else:
+        background = get_random_picture(dimensions, d_type)
+    return background
+
+def merge_images(img1, img2):
+    """Merge two images with dark pixels being transparent in one input image"""
+    img2 = img2.astype('float32')
+    img2 = img2 / 256
+    for i, x in enumerate(img1):
+        img2[i] = img2[i] + x
+    img2[img2 < 1] *= 256
+    img2 = img2.astype('uint8')
+    return img2
+
+def rand_char_img(letterset: str, fnts: list, augment: bool = False) -> tuple[Image.Image, str]:
     """Create an image of space_index character
 
     Input
@@ -90,40 +233,159 @@ def rand_char_img(letterset: str, fnts: list, warp: bool = False) -> tuple[Image
         Image
         String of letter used
     """
-    rint_1, rint_2, rint_3, rint_4, rint_5 = random.randint(0, 64), random.randint(0, 64), random.randint(0, 255), random.randint(1, 254), random.randint(0, 20)
-    image = Image.new(mode='L', color=rint_3, size=(64, 64))
-    char = random.choice(letterset)
-    if rint_3 < 128:
-        tfill = rint_3 + (32 * round((rint_5 + 5) / 6) - 1)
+    random_coef_1, random_coef_2, random_coef_3, random_coef_4 = random.randint(0, 64), random.randint(0, 64), random.randint(1, 254), random.randint(0, 20)
+    text_fill = round(abs((255 * random.randint(0, 1)) - abs(np.random.randn() * 255 / (np.pi * 2))))
+    background_range = [x for x in range(0, 255) if x not in range(text_fill - 16, text_fill + 16)]
+    if random.randint(0, 4) == 0:
+        image = Image.fromarray(np.random.default_rng().integers(0, 255, (64, random.randint(42, 64)), dtype='uint8'))
     else:
-        tfill = rint_3 - (32 * round((rint_5 + 5) / 6) - 1)
-    if warp:
-        if rint_5 < 6:
-            ImageDraw.Draw(image).rectangle((32 - round(rint_1 / 2), 0, 32 + round(rint_1 / 2), 64), fill=round((rint_3 + rint_4) / 2), outline=rint_2, width=1)
-        elif 6 < rint_5 < 9:
-            ImageDraw.Draw(image).line([round(rint_2 / 4), rint_1, round(rint_2 / 4), 64], rint_4, round(rint_5 / 4))
-        elif 9 < rint_5 < 12:
-            ImageDraw.Draw(image).line([64 -  round(rint_2 / 4), rint_1, 64 - round(rint_2 / 4), 64], rint_4, round(rint_5 / 4))
-        """ elif 9 < rint_5 < 12:
-            ImageDraw.Draw(image).line([0, rint_2, rint_1, rint_2], rint_4, round(rint_5 / 4))
-        elif 12 < rint_5 < 15:
-            ImageDraw.Draw(image).regular_polygon((32, 32, round(rint_5 * 1.5)), round(rint_5 / 2), rotation=rint_2, fill=rint_4, outline = 255 - rint_4)
-        elif 15 < rint_5 < 18:
-            ImageDraw.Draw(image).rounded_rectangle([64 - rint_1, 64 - rint_1, rint_1, rint_1], round(rint_3 / 2), rint_4) """
+        image = Image.new(mode='L', color=random.choice(background_range), size=(64, 64))
+    char = random.choice(letterset)
+    if augment:
+        if random_coef_4 < 6:
+            ImageDraw.Draw(image).rectangle(
+                (32 - round(random_coef_1 / 2), 32 - round(random_coef_1 / 2), 32 + round(random_coef_1 / 2), 32 + round(random_coef_1 / 2)),
+                fill=random.choice(background_range),
+                outline=random_coef_2,
+                width=1
+            )
+        elif 6 < random_coef_4 < 9:
+            ImageDraw.Draw(image).line(
+                [round(random_coef_2 / 4), random_coef_1, round(random_coef_2 / 4), 64],
+                random_coef_3,
+                round(random_coef_4 / 4)
+            )
+        elif 9 < random_coef_4 < 12:
+            ImageDraw.Draw(image).line(
+                [64 -  round(random_coef_2 / 4), random_coef_1, 64 - round(random_coef_2 / 4), 64],
+                random_coef_3,
+                round(random_coef_4 / 4)
+            )
     ImageDraw.Draw(image).text(
-        (random.randint(26, 38), random.randint(40, 58)),
+        (random.randint(24, 40), random.randint(36, 54)),
         char,
-        font=ImageFont.truetype(random.choice(fnts), random.randint(35, 65), encoding="unic"),
-        fill=tfill,
+        font=ImageFont.truetype(random.choice(fnts), random.randint(30, 66), encoding="unic"),
+        fill=text_fill,
         stroke_width=random.randint(0, 1),
-        stroke_fill=2 * (rint_1 + rint_2),
+        stroke_fill=2 * (random_coef_1 + random_coef_2),
         anchor='ms'
     )
-    if rint_1 >= 48:
-        image = ImageOps.invert(image)
-    return image, char
+    image = cropper(image, 0)
+    background = np.ones((64, 64), dtype='uint8') * random.choice(background_range)
+    x_start_pos = round((64 - len(image[0])) / 2)
+    background[:, x_start_pos:x_start_pos + len(image[0])] = image
+    return background, char
 
-def gen_chars(samples: int, letterset: str, fnts: list, warp: bool = False, superset: str = None) -> tuple[np.ndarray, np.ndarray]:
+def find_spaces(word, font_choice, font_color, randomize=False):
+    """Find the positions of the spaces between letters in an image"""
+    img = Image.new(mode='L', color=0, size=(1000, 64))
+    avg_background_color = np.array(img)[:, 0].sum()
+    space_positions = []
+    text_position_tracker = 6
+    for i, _ in enumerate(word):
+        ImageDraw.Draw(img).text((text_position_tracker, 0), word[i:i+1], font=font_choice, fill=font_color, anchors='ml')
+        for j, y in enumerate(np.flip(np.array(img)).T):
+            if y.sum() != avg_background_color:
+                if randomize:
+                    if random.randint(0, 4) == 0:
+                        spacing = random.randint(6, 10)
+                    else:
+                        spacing = random.randint(0, 5)
+                else:
+                    spacing = 2
+                space_positions.append((1000 - j, (1000 - j) + spacing))
+                text_position_tracker = (1000 - j) + spacing
+                break
+    space_positions.append((space_positions[-1][1] + 24, space_positions[-1][1] + 32))
+    img = np.array(img)[:, :space_positions[-1][1] + 8]
+    return img, space_positions
+
+def gen_tdet_data(samples: int, fonts: str, characters: list[str], augment: bool = False):
+    """
+    Generate labeled data for text detection
+
+    Args:
+        samples (int): Number of samples to generate
+        fonts (str): Font set to use
+        characters: List of characters to use
+        augment(bool): Boolean to turn img augmentation on
+
+    Returns:
+        tuple[np.ndarray, np.ndarray]: Array containing data, Array containing labels
+    """
+    if ' ' in characters:
+        characters.remove(' ')
+    finished_labels = []
+    finished_images = []
+    while samples > 0:
+        samples -= 1
+        img = Image.new(mode='L', color=0, size=(1000, 144))
+        font_choice = ImageFont.truetype(random.choice(fonts), random.randint(28, 144), encoding="unic")
+        font_color = abs((random.randint(0, 1) * 255) - int(np.random.triangular(1, 1, 127)))
+        ImageDraw.Draw(img).text((0, 0), word_make(characters), font=font_choice, fill=font_color, anchors='ml')
+        img = cropper(img)
+        background = get_background(img.shape, 'uint8', (3, 1, 4, 2, 6))
+        img = merge_images(img, background)
+        if augment and random.randint(0, 1) == 0:
+            img = img_warper(img, False)
+            background = img_warper(background, False)
+        if img.shape[0] < 64:
+            img = btk.force_dim(img, 64, 1)
+            background = btk.force_dim(background, 64, 1)
+        for _ in range(7):
+            ypos = random.randint(0, img.shape[0] - 64)
+            xpos = random.randint(0, img.shape[1] - 64)
+            finished_images.append(img[ypos:ypos + 64, xpos:xpos + 64])
+            finished_labels.append(1)
+            ypos = random.randint(0, img.shape[0] - 64)
+            xpos = random.randint(0, img.shape[1] - 64)
+            finished_images.append(background[ypos:ypos + 64, xpos:xpos + 64])
+            finished_labels.append(0)
+    return np.array(finished_images), np.array(finished_labels)
+
+def gen_tseg_data(samples: int, fonts: str, characters: list[str], augment: bool = False) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Generate labeled data for word segmentation | space detection neural network
+
+    Args:
+        samples (int): Number of samples to generate
+        font_choices (str): Font set to use
+        augment(bool): Boolean to turn img augmentation on
+
+    Returns:
+        tuple[np.ndarray, np.ndarray]: Array containing data, Array containing labels
+    """
+    if ' ' in characters:
+        characters.remove(' ')
+    finished_labels = []
+    finished_images = []
+    while samples > 0:
+        samples -= 1
+        font_choice = ImageFont.truetype(random.choice(fonts), random.randint(28, 60), encoding="unic")
+        font_color = abs((random.randint(0, 1) * 255) - int(np.random.triangular(1, 1, 127)))
+        img, space_positions = find_spaces(word_make(characters), font_choice, font_color, True)
+        img = merge_images(img, get_background((64, space_positions[-1][1] + 8), 'uint8', (3, 1, 4, 2, 5)))
+        if augment and random.randint(0, 1) == 0:
+            img = img_warper(img, False)
+        for i, x in enumerate(space_positions[:-1]):
+            letter_left_border = space_positions[i - 1][1] + 2
+            border_buffer = 3
+            if i == 0:
+                letter_left_border = 9
+            if x[0] - letter_left_border < 7:
+                border_buffer = round((x[0] - letter_left_border) / 2) - 1
+            for _ in range(3):
+                position = random.randint(letter_left_border + border_buffer, x[0] - border_buffer)
+                finished_images.append(img[:, position - 6:position + 6])
+                finished_labels.append(0)
+        for x in space_positions:
+            for _ in range(2):
+                position = random.randint(x[0], x[1] + 1)
+                finished_images.append(img[:, position - 6: position + 6])
+                finished_labels.append(1)
+    return np.array(finished_images), np.array(finished_labels)
+
+def gen_tcls_data(samples: int, letterset: str, fnts: list, augment: bool = False, all_characters: list[str] = False) -> tuple[np.ndarray, np.ndarray]:
     """Create a dataset of images containing a letter and labels of the letter as a string
 
     Input
@@ -136,268 +398,23 @@ def gen_chars(samples: int, letterset: str, fnts: list, warp: bool = False, supe
         Images as arrays
         Booleans as arrays
     """
-    tdata = []
-    tlabel = []
-    if not superset:
-        superset = letterset
-    """ lows = letterset.copy()
-    for x in string.ascii_uppercase:
-        lows.remove(x) """
+    if not all_characters:
+        all_characters = letterset
+    fixed_case_characters = [x for x in all_characters if x not in case_chars]
+    label_index_size = len(fixed_case_characters) - 1
+    finished_images = []
+    finished_labels = []
     while samples > 0:
         samples -= 1
-        if warp:
-            item = rand_char_img(letterset, fnts, True)
-            tdata.append(img_warper(img_warper(np.array(item[0]))))
+        if augment:
+            image_set = rand_char_img(letterset, fnts, True)
+            finished_images.append(img_warper(np.array(image_set[0])))
         else:
-            item = rand_char_img(letterset, fnts, False)
-            tdata.append(np.array(item[0]))
-        tlabel.append(np.insert(np.zeros(len(superset) - 1, np.int8), superset.index(str(item[1])), 1))
-    return np.asarray(tdata, dtype='uint8'), np.asarray(tlabel)
-
-
-def cropper(img: Image.Image) -> np.ndarray:
-    """Trims excessive whitespace around text on an input image
-
-    Only works with solid backgrounds
-    """
-    img = np.array(img)
-    ylen = len(img) - 1
-    xlen = len(img[0]) - 1
-    msy = img[0].sum()
-    msx = img[:, 0].sum()
-    for x in range(0, ylen):
-        if img[x].sum() != msy:
-            ytop = x - 2
-            break
-    for x in range(ylen, 0, -1):
-        if img[x].sum() != msy:
-            ybot = x + 2
-            break
-    for x in range(0, xlen):
-        if img[:, x].sum() != msx:
-            xlft = x - 2
-            break
-    for x in range(xlen, 0, -1):
-        if img[:, x].sum() != msx:
-            xrgt = x + 2
-            break
-    return img[ytop:ybot, xlft:xrgt]
-
-def pers_warp(image: Image.Image, fnts: list, words: str) -> np.ndarray:
-    """Draw perspective shift warping to text on a background image
-
-    Input
-        Image of background
-        List of fonts
-        String of words
-
-    Output
-        Image as array
-    """
-    rand_coef, scalar = random.randint(1, 4), random.randint(0, 3)
-    lyscale, ryscale, ytrans, xtrans = scalar, scalar, scalar * 5, scalar * random.randrange(-2, 2)
-    ImageDraw.Draw(image).text(
-        (32, 320),
-        words,
-        font=ImageFont.truetype(random.choice(fnts), random.randint(22, 36), encoding="unic"),
-        fill=random.randint(105, 255)
-    )
-    if rand_coef in [1, 3]:
-        ryscale = 0
-    else:
-        lyscale = 0
-    if rand_coef in [1, 4]:
-        ytrans = ytrans * -1
-    image = cropper(image)
-    ylen, xlen = np.array(image).shape
-    image = cv.warpPerspective(
-        np.array(image),
-        cv.getPerspectiveTransform(
-            np.float32([[0, 0], [xlen, 0], [0, ylen], [xlen, ylen]]),
-            np.float32([
-                [64 - xtrans, 320 - lyscale],
-                [64 + xlen - xtrans, 320 - ryscale - ytrans],
-                [64, 320 + ylen + lyscale],
-                [64 + xlen, 320 + ylen + ryscale - ytrans]
-            ])
-        ),
-        (640, 640)
-    )
-    image = cropper(image)
-    return image.astype('uint16')
-
-def tilt_words(tbg: np.ndarray, fnts: list, count: int, rinv: bool = False) -> tuple[np.ndarray, np.ndarray, list]:
-    """Place randomly generated strings of words on the input image
-
-    Input
-        Image as array
-        List of fonts to use
-        Integer for word count
-        Boolean for color inversion
-
-    Output Tuple
-        Image as array
-        List of coordinates for bounding box coordinates of the words
-        List of strings of words
-    """
-    y_s = [140, 212, 284, 356, 428, 500]
-    coords = []
-    word_list = []
-    while count > 0:
-        count -= 1
-        chosen = random.choice(y_s)
-        y_s.remove(chosen)
-        words = sentence_make(2)
-        image = pers_warp(Image.new(mode='L', size=(640, 640)), fnts, words)
-        xlen, ylen = len(image[0]), len(image)
-        xpos, ypos = random.randint(8, 630 - xlen), random.randint(chosen - 32, chosen + 32)
-        coords.append([ypos, ypos + ylen, xpos, xpos + xlen])
-        word_list.append(words)
-        for x in range(ylen):
-            tbg[ypos][xpos:xpos + xlen] = tbg[ypos][xpos:xpos + xlen] + image[x]
-            ypos += 1
-    tbg[tbg > 255] = 255
-    tbg = tbg.astype('uint8')
-    if rinv and random.randint(0, 1) == 1:
-        tbg = np.invert(tbg)
-    return tbg, np.array(coords), word_list
-
-def bg_words(samples: int, per_im: int, fnts: list) -> list:
-    """Create an image set of words applied to a set of synthetic and photo backgrounds
-
-    Input
-        Integer of image samples to create
-        Integer of sentences per image
-        List of fonts to use
-
-    Output List of Tuples
-        Image as array
-        List of coordinates for bounding box coordinates of the words
-        List of strings of words
-    """
-    grids = []
-    bglst = []
-    for x in os.walk(f"{os.environ['Base']}Resources\\MiniDataSets\\ADEChallengeData2016\\images\\training"):
-        for y in x[2]:
-            bglst.append(os.path.join(x[0], y))
-    for x in os.walk(f"{os.environ['Base']}Resources\\MiniDataSets\\naturebg"):
-        for y in x[2]:
-            bglst.append(os.path.join(x[0], y))
-    for x in os.walk(f"{os.environ['Base']}Resources\\MiniDataSets\\grids"):
-        for y in x[2]:
-            grids.append(os.path.join(x[0], y))
-    stored = []
-    while samples > 0:
-        bg_pick = random.randint(0, 9)
-        samples -= 1
-        if bg_pick == 1:
-            tbg = np.ones((640, 640), dtype=np.uint16) * random.randint(0, 100)
-        elif bg_pick == 2:
-            tbg = np.random.default_rng().integers(0, random.randint(25, 225), (640, 640), dtype='uint16')
-        elif bg_pick == 3:
-            with Image.open(random.choice(grids)) as img:
-                tbg = np.array(img.resize((640, 640)).convert("L"), dtype='uint16')
-            tbg = np.array(Image.fromarray(tbg[random.randint(0, 160):random.randint(480, 640), random.randint(0, 160):random.randint(480, 640)]).resize((640, 640)))
-        elif bg_pick == 4:
-            tbg = Image.fromarray(np.ones((80, 640), dtype=np.uint8) * random.randint(0, 100))
-            i = 7
-            while i > 0:
-                ypos = random.randint(0, 80)
-                ImageDraw.Draw(tbg).line((0, ypos, 640, ypos), fill=random.randint(0, 120), width=random.randint(1, 5))
-                i -= 1
-            tbg = np.array(tbg, dtype='uint16')
-            tbg = np.vstack((tbg, tbg, tbg, tbg, tbg, tbg, tbg, tbg))
+            image_set = rand_char_img(letterset, fnts, False)
+            finished_images.append(np.array(image_set[0]))
+        if image_set[1] in case_chars:
+            letter_index = fixed_case_characters.index(str.lower(image_set[1]))
         else:
-            with Image.open(random.choice(bglst)) as img:
-                tbg = np.array(img.resize((640, 640)).convert("L"), dtype='uint16')
-        stored.append(tilt_words(tbg, fnts, per_im, True))
-    return stored
-
-
-def binary_text(imset: list, warp: bool = False) -> tuple[np.ndarray, np.ndarray]:
-    """Generate a dataset of images containing an even split of images containing text and not containing text along with the corresponding labels
-
-    Input
-        List of Tuples
-            Image as array
-            List of coordinates for bounding box coordinates of the words
-            List of strings of words
-        Boolean for application of randomized image warping
-
-    Output
-        Tuple
-            Array of images as arrays
-            Array of boolean labels
-    """
-    binx = []
-    biny = []
-    for x in imset:
-        inum = range((x[1][0][3] - x[1][0][2]) // 32)
-        for _ in inum:
-            xpick = random.randint(x[1][0][2], x[1][0][3] - 32)
-            xpick = min(xpick, 575)
-            xpick = max(xpick, 65)
-            ypick = random.randint(((x[1][0][1] - x[1][0][0]) // 2) + x[1][0][0] - 32,
-                                   ((x[1][0][1] - x[1][0][0]) // 2) + x[1][0][0])
-            ypick = min(ypick, 575)
-            ypick = max(ypick, 65)
-            binx.append(np.array(x[0][ypick:ypick + 32, xpick:xpick + 32]))
-            biny.append(1)
-        if x[1][0][1] < 320:
-            nypick = random.randint(320, 480)
-        else:
-            nypick = random.randint(1, 160)
-        for _ in inum:
-            nxpick = random.randint(20, 560)
-            binx.append(np.array(x[0][nypick:nypick + 32, nxpick:nxpick + 32]))
-            biny.append(0)
-    if warp:
-        binx = [img_warper(np.array(x), False) for x in binx]
-    return np.array(binx, dtype='uint8'), np.array(biny)
-
-def character_spaces(samples: int, fnts: str) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Generate labeled data for word segmentation | space detection neural network
-
-    Args:
-        samples (int): Number of samples to generate
-        fnts (str): Font set to use
-
-    Returns:
-        tuple[np.ndarray, np.ndarray]: Array containing data, Array containing labels
-    """
-    labels = []
-    data = []
-    while samples > 0:
-        samples -= 1
-        word = sentence_make(1)
-        while len(word) < 5:
-            word = sentence_make(1)
-        spaces = []
-        fnt = ImageFont.truetype(random.choice(fnts), random.randint(18, 32), encoding="unic")
-        for x in range(len(word)):
-            image = Image.new(mode='L', color=random.randint(0, 100), size=(1000, 100))
-            ImageDraw.Draw(image).text((30, 35), word[:x+1], font=fnt, fill=random.randint(140, 255))
-            image = cropper(image)
-            spaces.append(image.shape[1])
-        if random.randint(0, 1) == 1:
-            image = np.invert(image)
-        spaces.pop(0)
-        spaces.pop(-1)
-        spaces.pop(-1)
-        factor = 32 / image.shape[0]
-        bspaces = np.round(np.array(spaces) * factor).astype('int')
-        bimage = np.array(Image.fromarray(image).resize((round(image.shape[1] * factor), round(image.shape[0] * factor))))
-        nons = bspaces + np.append(np.diff(bspaces) // 2, round(np.average(np.diff(bspaces) // 2)))
-        bimage = np.array(img_warper(bimage, False))
-        for x in range(len(spaces)):
-            space_index = bspaces[x]
-            non_space_index = nons[x]
-            if space_index + 8 < len(bimage[0]):
-                data.append(bimage[:, space_index - 6:space_index + 6])
-                labels.append(1)
-            if non_space_index + 8 < len(bimage[0]):
-                data.append(bimage[:, non_space_index - 6:non_space_index + 6])
-                labels.append(0)
-    return np.array(data, dtype='uint8'), np.array(labels)
-
+            letter_index = fixed_case_characters.index(image_set[1])
+        finished_labels.append(np.insert(np.zeros(label_index_size, np.int8), letter_index, 1))
+    return np.asarray(finished_images, dtype='uint8'), np.asarray(finished_labels)
