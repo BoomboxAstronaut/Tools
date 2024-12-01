@@ -1,55 +1,65 @@
 """Module for generating datasets for ML"""
-import string
-import logging
+
 import os
+import logging
 import random
+import string
+
 import cv2 as cv
 import numpy as np
+
 from PIL import Image, ImageDraw, ImageFont
-import btk
+from btk import imgkit
 
-""" grids = []
-bglst = []
-for x in os.walk(f"{os.environ['Base']}Resources\\MiniDataSets\\ADEChallengeData2016\\images\\training"):
-    for y in x[2]:
-        bglst.append(os.path.join(x[0], y))
-for x in os.walk(f"{os.environ['Base']}Resources\\MiniDataSets\\naturebg"):
-    for y in x[2]:
-        bglst.append(os.path.join(x[0], y))
-for x in os.walk(f"{os.environ['Base']}Resources\\MiniDataSets\\grids"):
-    for y in x[2]:
-        grids.append(os.path.join(x[0], y)) """
-
-with open(f"{os.environ['Tools']}tfonts", encoding='utf8') as f:
-    trainfonts = [x.strip('\\\n') for x in f.readlines()]
-with open(f"{os.environ['Tools']}vfonts", encoding='utf8') as f:
-    evalfonts = [x.strip('\\\n') for x in f.readlines()]
-with open(f"{os.environ['Base']}Resources\\engwords.txt", encoding='utf8') as f:
-    words = f.read().splitlines()
-with open(f"{os.environ['Base']}Resources\\bglist", 'r', encoding='utf8') as f:
-    bglst = f.readlines()
-    bglst = [x.strip('\n') for x in bglst]
-with open(f"{os.environ['Base']}Resources\\gridbgs", 'r', encoding='utf8') as f:
-    grids = f.readlines()
-    grids = [x.strip('\n') for x in grids]
-
-xtcls = list('o0OIl1Q,. ')
-case_chars = list('ZXWVSPOC')
-icase_chars = list('zxwvspoc')
-xtseg = list('aaettddhsmmonpquvwwyAWLLEMMNNNSYTVWVUHHHHH')
-xtsegwords = ['WAWAWAWA', 'kLkKkKyyYYYyy', 'ununuUNUNN', 'frfttrtrfrtfr', 'dbdbhbdhbdhbd', 'mmmwwmmww', 'THTHTHTHT', 'EEEEFFFFRRR', 'gegegegeeg']
-
-chars = list(string.ascii_letters)
-chars.extend(string.digits)
-chars.extend(list(' ():;.,"\'!@#$%&?+=-'))
-chars_cased = [x for x in chars if x not in case_chars]
-
+synth_vars = dict()
 logging.basicConfig(
-    filename=f"{os.environ['base']}\\ComputerVision\\reading\\datagen.log",
+    filename=f"{os.environ['Base']}\\ComputerVision\\reading\\datagen.log",
     filemode='a',
     format='%(funcName)s::%(levelname)s::%(asctime)s:: %(message)s',
     level=logging.WARNING
-    )
+)
+
+def text_init():
+    with open(f"{os.environ['Base']}Resources\\engwords.txt", encoding='utf8') as f:
+        synth_vars['words'] = f.read().splitlines()
+    with open(f"{os.environ['Tools']}tfonts", encoding='utf8') as f:
+        synth_vars['trainfonts'] = [x.strip('\\\n') for x in f.readlines()]
+    with open(f"{os.environ['Tools']}vfonts", encoding='utf8') as f:
+        synth_vars['evalfonts'] = [x.strip('\\\n') for x in f.readlines()]
+    synth_vars['xtcls'] = list('o0OIl1Q,. ')
+    synth_vars['case_chars'] = list('ZXWVSPOC')
+    synth_vars['icase_chars'] = list('zxwvspoc')
+    synth_vars['xtseg'] = list('aaettddhsmmonpquvwwyAWLLEMMNNNSYTVWVUHHHHH')
+    synth_vars['xtsegwords'] = ['WAWAWAWA', 'kLkKkKyyYYYyy', 'ununuUNUNN', 'frfttrtrfrtfr', 'dbdbhbdhbdhbd', 'mmmwwmmww', 'THTHTHTHT', 'EEEEFFFFRRR', 'gegegegeeg']
+
+    chars = list(string.ascii_letters)
+    chars.extend(string.digits)
+    chars.extend(list(' ():;.,"\'!@#$%&?+=-'))
+    synth_vars['chars'] = chars
+    synth_vars['chars_cased'] = [x for x in synth_vars['chars'] if x not in synth_vars['case_chars']]
+
+def imgs_init(reload: bool = False):
+    if reload:
+        grids = []
+        bglst = []
+        for x in os.walk(f"{os.environ['Base']}Resources\\MiniDataSets\\ADEChallengeData2016\\images\\training"):
+            for y in x[2]:
+                bglst.append(os.path.join(x[0], y))
+        for x in os.walk(f"{os.environ['Base']}Resources\\MiniDataSets\\naturebg"):
+            for y in x[2]:
+                bglst.append(os.path.join(x[0], y))
+        for x in os.walk(f"{os.environ['Base']}Resources\\MiniDataSets\\grids"):
+            for y in x[2]:
+                grids.append(os.path.join(x[0], y))
+    else:
+        with open(f"{os.environ['Base']}Resources\\bglist", 'r', encoding='utf8') as f:
+            bglst = f.readlines()
+            bglst = [x.strip('\n') for x in bglst]
+        with open(f"{os.environ['Base']}Resources\\gridbgs", 'r', encoding='utf8') as f:
+            grids = f.readlines()
+            grids = [x.strip('\n') for x in grids]
+    synth_vars['grids'] = grids
+    synth_vars['bglst'] = bglst
 
 def sentence_make(length: int) -> str:
     """Generate a random series of real words from a dictionary"""
@@ -58,9 +68,9 @@ def sentence_make(length: int) -> str:
     while i > 0:
         rint = random.choice((0, 1))
         if rint == 0:
-            sentence.append(random.choice(words))
+            sentence.append(random.choice(synth_vars['words']))
         elif rint == 1:
-            sentence.append(str.upper(random.choice(words)))
+            sentence.append(str.upper(random.choice(synth_vars['words'])))
         i -= 1
     return ' '.join(sentence)
 
@@ -109,7 +119,7 @@ def img_warper(img: Image.Image, rotate: bool = True) -> Image.Image:
     if choice == 1:
         img = cv.GaussianBlur(img, (random_coef_3, random_coef_3), random_coef_1)
     elif choice == 2:
-        img = btk.sharpen(img)
+        img = imgkit.sharpen(img)
     elif choice == 3:
         img = cv.erode(img, np.ones((random_coef_2, random_coef_2)), iterations=1)
     elif choice == 4:
@@ -131,7 +141,7 @@ def img_warper(img: Image.Image, rotate: bool = True) -> Image.Image:
 
 def get_random_picture(dimensions: tuple[int, int], d_type: str = 'uint8'):
     """Load, scale, and slice a random picture"""
-    with Image.open(random.choice(bglst)) as f:
+    with Image.open(random.choice(synth_vars['bglst'])) as f:
         img = np.array(f.convert("L"), dtype=d_type)
     if img.shape[0] < dimensions[0]:
         img_top = 0
@@ -170,7 +180,7 @@ def gen_stripe_image(dimensions: tuple[int, int], d_type: str = 'uint8'):
 
 def get_grid_picture(dimensions: tuple[int, int], d_type: str = 'uint8'):
     """Load, scale, and slice a random image of a grid"""
-    with Image.open(random.choice(grids)) as f:
+    with Image.open(random.choice(synth_vars['grids'])) as f:
         img = np.array(f.convert("L"), dtype=d_type)
     img_top = random.randint(0, img.shape[0] - 100)
     img_left = random.randint(0, img.shape[1] - 100)
@@ -330,8 +340,8 @@ def gen_tdet_data(samples: int, fonts: str, characters: list[str], augment: bool
             img = img_warper(img, False)
             background = img_warper(background, False)
         if img.shape[0] < 64:
-            img = btk.force_dim(img, 64, 1)
-            background = btk.force_dim(background, 64, 1)
+            img = imgkit.force_dim(img, 64, 1)
+            background = imgkit.force_dim(background, 64, 1)
         for _ in range(7):
             ypos = random.randint(0, img.shape[0] - 64)
             xpos = random.randint(0, img.shape[1] - 64)
@@ -400,7 +410,7 @@ def gen_tcls_data(samples: int, letterset: str, fnts: list, augment: bool = Fals
     """
     if not all_characters:
         all_characters = letterset
-    fixed_case_characters = [x for x in all_characters if x not in case_chars]
+    fixed_case_characters = [x for x in all_characters if x not in synth_vars['case_chars']]
     label_index_size = len(fixed_case_characters) - 1
     finished_images = []
     finished_labels = []
@@ -412,7 +422,7 @@ def gen_tcls_data(samples: int, letterset: str, fnts: list, augment: bool = Fals
         else:
             image_set = rand_char_img(letterset, fnts, False)
             finished_images.append(np.array(image_set[0]))
-        if image_set[1] in case_chars:
+        if image_set[1] in synth_vars['case_chars']:
             letter_index = fixed_case_characters.index(str.lower(image_set[1]))
         else:
             letter_index = fixed_case_characters.index(image_set[1])

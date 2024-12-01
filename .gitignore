@@ -1,3 +1,9 @@
 Test.ipynb
 tfonts
 vfonts
+*.csv
+*.png
+*.txt
+baks/
+macro/saved_macs
+macro/test.py
